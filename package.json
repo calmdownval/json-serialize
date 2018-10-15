@@ -1,19 +1,27 @@
 {
 	"name": "@calmdownval/json-serialize",
-	"version": "1.0.1",
-	"license" : "MIT",
+	"version": "1.0.2",
+	"license": "MIT",
 	"description": "JSON serializer & pretty serializer",
-	"main" : "index.mjs",
-	"keywords" :
-	[
+	"main": "index.mjs",
+	"keywords": [
 		"json",
 		"serializer",
 		"pretty",
 		"print"
 	],
-	"repository" :
-	{
-		"type" : "git",
-		"url" : "https://github.com/calmdownval/json-serialize.git"
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/calmdownval/json-serialize.git"
+	},
+	"engines": {
+		"node" : ">=10.0.0"
+	},
+	"devDependencies": {
+		"benchmark": "^2.1.4",
+		"microtime": "^2.1.8"
+	},
+	"scripts": {
+		"benchmark" : "node --experimental-modules ./test/benchmark.mjs"
 	}
 }
