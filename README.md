@@ -1,8 +1,15 @@
 # JSON Serialize
+**NOTICE: This module uses the ECMAScript import/export mechanism and requires Node v10+.
+Please refer to [Node's documentation](https://nodejs.org/api/esm.html#esm_enabling) to read
+more on how to enable this functionality in your environment.**
+
 A module for serialization of any javascript object into JSON string.
-The module exports the `Serializer` and `PrettySerializer` classes both
-sharing the same interface. Additionally `RegExp` objects are serialized
-as strings.
+The module exports the `Serializer` and `PrettySerializer` classes
+sharing a common interface.
+
+- serializes `RegExp` objects as strings
+- serializes `NaN`, `Infinity` and `-Infinity` as strings
+- allows to finish serialization even with cycles in the object, see `Serializer.throwOnCycle`
 
 ## Installation
 ```
@@ -10,28 +17,31 @@ npm install @calmdownval/json-serialize
 ```
 
 ## Interface
-After an instance of a serializer is created it can serialize objects using
-the `.serialize(obj)` method. The result is returned as a string.
 
-## PrettySerializer options
-The `PrettySerializer` class exposes the following properties:
-```js
-// the sequence to indent with
-// TAB by default, use strings such as '    ' for multi-space indentation
-indent = '\t';
+### `Serializer.throwOnCycle`
+When a circular structure is detected the serializer can either throw an Error
+or, in case this option is set to `false` the string `"[cycle]"` will be put
+instead of the object.  
+defaults to `true`
 
-// the sequence to break lines with
-// line feed by default
-lineBreak = '\n';
+### `Serializer.serialize(obj)`
+Serializes the object and return it as JSON string.
 
-// whether object & array opening brackets go on a separate line
-// false by default
-bracketsOwnLine = false;
+### `PrettySerializer.indent`
+the sequence to indent with  
+TAB (`\t`) by default, for n-space indentation simply set this string to a string of n spaces
 
-// whether to insert an extra space before colons in objects
-// false by default
-spaceBeforeColon = false;
-```
+### `PrettySerializer.lineBreak`
+the sequence to break lines with  
+line feed (`\n`) by default
+
+### `PrettySerializer.bracketsOwnLine`
+whether object & array opening brackets go on a separate line  
+`false` by default
+
+### `PrettySerializer.spaceBeforeColon`
+whether to insert an extra space before colons in objects  
+`false` by default
 
 ## Example
 ```js
@@ -70,13 +80,25 @@ new Serializer().serialize(people);
 ["Alice Z.","Bob Y.","John X."]
 */
 
+// create a cycle
+people.push(people);
 
-new PrettySerializer().serialize(people);
+const inst = new PrettySerializer();
+inst.throwOnCycle = false;
+
+inst.serialize(people);
 /* returns:
 [
     "Alice Z.",
     "Bob Y.",
-    "John X."
+    "John X.",
+    "[cycle]"
 ]
 */
+```
+
+## Benchmarking
+```
+npm install
+npm run benchmark
 ```
