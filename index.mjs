@@ -32,28 +32,54 @@ function quote(str)
 
 export class Serializer
 {
-	serialize(obj)
+	constructor()
 	{
+		this.throwOnCycle = true;
+	}
+
+	_startBlock()
+	{
+		return '';
+	}
+
+	_nextItem()
+	{
+		return '';
+	}
+
+	_endBlock()
+	{
+		return '';
+	}
+
+	_increaseIndent()
+	{
+		return '';
+	}
+
+	_colon()
+	{
+		return ':';
+	}
+
+	_serialize(obj, list, indent)
+	{
+		if (list.indexOf(obj) != -1)
+		{
+			if (this.throwOnCycle)
+			{
+				throw new Error('invalid circular structure to serialize as JSON');
+			}
+			return '"[cycle]"';
+		}
+
 		if (obj && typeof obj == 'object')
 		{
-			var i, tmp, first = true;
-
-			if (Array.isArray(obj))
-			{
-				tmp = '[';
-
-				if (obj.length != 0)
-				{
-					tmp += this.serialize(obj[0]);
-				}
-
-				for (i = 1; i < obj.length; ++i)
-				{
-					tmp += ',' + this.serialize(obj[i]);
-				}
-
-				return tmp + ']';
-			}
+			var i,
+				tmp,
+				first = true,
+				newIndent,
+				colon;
 
 			if (obj instanceof Date)
 			{
@@ -65,100 +91,106 @@ export class Serializer
 				return '"' + quote(obj.toString()) + '"';
 			}
 
-			if (typeof obj.toJSON == 'function')
+			// don't iterate the same object twice
+			list.push(obj);
+
+			if (Array.isArray(obj))
 			{
-				return this.serialize(obj.toJSON());
+				tmp = this._startBlock(indent) + '[';
+				newIndent = this._increaseIndent(indent);
+
+				if (obj.length != 0)
+				{
+					tmp += this._nextItem(newIndent) + this._serialize(obj[0], list, newIndent);
+				}
+
+				for (i = 1; i < obj.length; ++i)
+				{
+					tmp += ',' + this._nextItem(newIndent) + this._serialize(obj[i], list, newIndent);
+				}
+
+				return tmp + (this._endBlock(indent, obj.length == 0) + ']');
 			}
 
-			tmp = '{';
+			if (typeof obj.toJSON == 'function')
+			{
+				return this._serialize(obj.toJSON(), list, indent);
+			}
+
+			tmp = this._startBlock(indent) + '{';
+			newIndent = this._increaseIndent(indent);
+			colon = '"' + this._colon();
+
 			for (i in obj)
 			{
 				if (first)
 				{
-					tmp += '"' + quote(i) + '":' + this.serialize(obj[i]);
+					tmp += this._nextItem(newIndent) + '"' + quote(i) + colon + this._serialize(obj[i], list, newIndent);
 					first = false;
 					continue;
 				}
 
-				tmp += ',"' + quote(i) + '":' + this.serialize(obj[i]);
+				tmp += ',' + this._nextItem(newIndent) + '"' + quote(i) + colon + this._serialize(obj[i], list, newIndent);
 			}
 
-			return tmp + '}';
+			return tmp + (this._endBlock(indent, first) + '}');
 		}
 
+		// convert special numbers into strings
+		if (typeof obj == 'number' && !Number.isFinite(obj))
+		{
+			return `"${obj.toString()}"`;
+		}
+
+		// use the builtin for primitives
 		return JSON.stringify(obj);
+	}
+
+	serialize(obj)
+	{
+		const list = [];
+		return this._serialize(obj, list, '');
 	}
 }
 
-export class PrettySerializer
+export class PrettySerializer extends Serializer
 {
 	constructor()
 	{
+		super();
+
 		this.indent = '\t';
 		this.lineBreak = '\n';
 		this.bracketsOwnLine = false;
 		this.spaceBeforeColon = false;
 	}
 
-	serialize(obj, indent = '')
+	_startBlock(indent)
 	{
-		if (obj && typeof obj == 'object')
-		{
-			var i, tmp, newIndent, first = true;
+		return this.bracketsOwnLine
+			? this.lineBreak + indent
+			: '';
+	}
 
-			if (Array.isArray(obj))
-			{
-				tmp = this.bracketsOwnLine ? this.lineBreak + indent + '[' : '[';
-				newIndent = indent + this.indent;
+	_nextItem(indent)
+	{
+		return this.lineBreak + indent;
+	}
 
-				if (obj.length != 0)
-				{
-					tmp += this.lineBreak + newIndent + this.serialize(obj[0], newIndent);
-				}
+	_endBlock(indent, empty)
+	{
+		return this.bracketsOwnLine || !empty
+			? this.lineBreak + indent
+			: '';
+	}
 
-				for (i = 1; i < obj.length; ++i)
-				{
-					tmp += ',' + this.lineBreak + newIndent + this.serialize(obj[i], newIndent);
-				}
+	_increaseIndent(indent)
+	{
+		return indent + this.indent;
+	}
 
-				return tmp + (obj.length == 0 ? ']' : this.lineBreak + indent + ']');
-			}
-
-			if (obj instanceof Date)
-			{
-				return '"' + obj.toISOString() + '"';
-			}
-
-			if (obj instanceof RegExp)
-			{
-				return '"' + quote(obj.toString()) + '"';
-			}
-
-			if (typeof obj.toJSON == 'function')
-			{
-				return this.serialize(
-					obj.toJSON(),
-					indent);
-			}
-
-			tmp = this.bracketsOwnLine ? this.lineBreak + indent + '{' : '{';
-			newIndent = indent + this.indent;
-
-			for (i in obj)
-			{
-				if (first)
-				{
-					tmp += this.lineBreak + newIndent + '"' + quote(i) + (this.spaceBeforeColon ? '" : ' : '": ') + this.serialize(obj[i], newIndent);
-					first = false;
-					continue;
-				}
-
-				tmp += ',' + this.lineBreak + newIndent + '"' + quote(i) + (this.spaceBeforeColon ? '" : ' : '": ') + this.serialize(obj[i], newIndent);
-			}
-
-			return tmp + (first ? '}' : this.lineBreak + indent + '}');
-		}
-
-		return JSON.stringify(obj);
+	_colon()
+	{
+		return this.spaceBeforeColon ? ' : ' : ': ';
 	}
 }
