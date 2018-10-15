@@ -1,0 +1,50 @@
+{
+	"extends" : "eslint:recommended",
+	"env" :
+	{
+		"browser" : true,
+		"es6" : true
+	},
+	"globals" :
+	{
+	},
+	"parserOptions" :
+	{
+		"sourceType" : "module"
+	},
+	"rules" :
+	{
+		"indent" :
+		[
+			"warn",
+			"tab",
+			{
+				"SwitchCase" : 1,
+				"ObjectExpression" : 1
+			}
+		],
+		"no-trailing-spaces" :
+		[
+			"warn"
+		],
+		"linebreak-style" :
+		[
+			"warn",
+			"unix"
+		],
+		"quotes" :
+		[
+			"warn",
+			"single"
+		],
+		"semi" :
+		[
+			"error",
+			"always"
+		],
+		"no-console" :
+		[
+			"warn"
+		]
+	}
+}
