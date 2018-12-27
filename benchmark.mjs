@@ -1,5 +1,5 @@
-import { Serializer, PrettySerializer } from '../index.mjs';
 import Benchmark from 'benchmark';
+import { Serializer, PrettySerializer } from './';
 
 const obj =
 	{
@@ -39,6 +39,10 @@ suite
 	.add('Serializer', () =>
 	{
 		min.serialize(obj);
+	})
+	.add('JSON.stringify pretty', () =>
+	{
+		JSON.stringify(obj, null, '\t');
 	})
 	.add('PrettySerializer', () =>
 	{
