@@ -1,3 +1,5 @@
 test
 .vscode
 .eslintrc.json
+test.esm.json
+benchmark.mjs
