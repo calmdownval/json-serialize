@@ -29,14 +29,24 @@ describe('Serializer', () =>
 		{
 			regex : /^abc/i,
 		},
-		cycles =
+		bigint =
 		{
-			bob : { friends : [] },
-			max : { friends : [] }
-		};
+			bigint : 123n
+		},
+		circular =
+		{
+			bob : { im_bob : 1, friends : [] },
+			max : { im_max : 1, friends : [] }
+		},
+		tmp = { abc : 123 },
+		nonCircular =
+		[
+			tmp,
+			tmp
+		];
 
-	cycles.bob.friends.push(cycles.max);
-	cycles.max.friends.push(cycles.bob);
+	circular.bob.friends.push(circular.max);
+	circular.max.friends.push(circular.bob);
 
 	it('should match JSON.stringify output with default settings', () =>
 	{
@@ -72,12 +82,12 @@ describe('Serializer', () =>
 			INVALID);
 	});
 
-	it('should throw when cycles are detected', () =>
+	it('should throw when trying to serialize bigints', () =>
 	{
 		const json = new Serializer();
 		try
 		{
-			json.serialize(cycles);
+			json.serialize(bigint);
 			assert.fail('no error was thrown');
 		}
 		catch (e)
@@ -86,16 +96,43 @@ describe('Serializer', () =>
 		}
 	});
 
-	it('should serialize cycles as JSON pointers when enabled', () =>
+	it('should not throw false positives for circular refs', () =>
 	{
 		const json = new Serializer();
-		json.cycles = true;
+		try
+		{
+			json.serialize(nonCircular);
+		}
+		catch (e)
+		{
+			assert.fail('a false-positive error was thrown');
+		}
+	});
+
+	it('should throw when circular refs are detected', () =>
+	{
+		const json = new Serializer();
+		try
+		{
+			json.serialize(circular);
+			assert.fail('no error was thrown');
+		}
+		catch (e)
+		{
+			// ok!
+		}
+	});
+
+	it('should serialize circular refs as JSON pointers when enabled', () =>
+	{
+		const json = new Serializer();
+		json.circulars = true;
 
 		try
 		{
 			assert.equal(
-				json.serialize(cycles),
-				'{"bob":{"friends":[{"friends":[{"$ref":"#/bob"}]}]},"max":{"$ref":"#/bob/friends/0"}}',
+				json.serialize(circular),
+				'{"bob":{"im_bob":1,"friends":[{"im_max":1,"friends":[{"$ref":"#/bob"}]}]},"max":{"$ref":"#/bob/friends/0"}}',
 				INVALID);
 		}
 		catch (e)

@@ -1,14 +1,14 @@
 function quote(str)
 {
-	var anchor = 0,
+	const length = str.length;
+
+	let anchor = 0,
 		index = 0,
-		length = str.length,
-		c,
 		tmp = '';
 
 	while (index < length)
 	{
-		c = str[index];
+		const c = str[index];
 		if (c === '"' || c === '\\')
 		{
 			if (anchor !== index)
@@ -32,15 +32,15 @@ function quote(str)
 
 function escape(str)
 {
-	var anchor = 0,
+	const length = str.length;
+
+	let anchor = 0,
 		index = 0,
-		length = str.length,
-		c,
 		tmp = '';
 
 	while (index < length)
 	{
-		c = str[index];
+		const c = str[index];
 		if (c === '~' || c === '/')
 		{
 			if (anchor !== index)
@@ -76,13 +76,19 @@ function shouldSkip(obj)
 	}
 }
 
+function isCircle(path, ref)
+{
+	const i = ref.lastIndexOf('/');
+	return !path.startsWith(i === -1 ? '' : ref.slice(0, i));
+}
+
 export class Serializer
 {
 	constructor()
 	{
 		this.infiniteNumbers =
 		this.regexes =
-		this.cycles = false;
+		this.circulars = false;
 	}
 
 	serialize(obj)
@@ -128,7 +134,7 @@ export class Serializer
 				{
 					if (refs[i] === obj)
 					{
-						if (!this.cycles)
+						if (!this.circulars && isCircle(path, refs[i + 1]))
 						{
 							throw new TypeError('Converting circular structure to JSON');
 						}
