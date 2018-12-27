@@ -1,104 +1,96 @@
 # JSON Serialize
-**NOTICE: This module uses the ECMAScript import/export mechanism and requires Node v10+.
+**This module uses the ES modules feature and requires Node v8.15.0+.
 Please refer to [Node's documentation](https://nodejs.org/api/esm.html#esm_enabling) to read
 more on how to enable this functionality in your environment.**
 
-A module for serialization of any javascript object into JSON string.
-The module exports the `Serializer` and `PrettySerializer` classes
-sharing a common interface.
+Provides serialization classes to provide 'pretty' and 'ugly' output with the same interface to allow swapping easily. Also serializes some additional inputs that the regular `JSON.stringify` doesn't:
 
-- serializes `RegExp` objects as strings
-- serializes `NaN`, `Infinity` and `-Infinity` as strings
-- allows to finish serialization even with cycles in the object, see `Serializer.throwOnCycle`
+- serializes `RegExp` objects into strings
+- serializes `NaN`, `Infinity` and `-Infinity` into strings
+- optionally serializes cyclic references as JSON pointers, see `Serializer.throwOnCycle`
+
+If you're only looking for a 'pretty' JSON output please use the [third argument of JSON.stringify](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON/stringify#Parameters) instead. It is the standard and also runs a bit faster, see benchmarking below.
 
 ## Installation
 ```
-npm install @calmdownval/json-serialize
+npm i @calmdownval/json-serialize
 ```
 
 ## Interface
 
-### `Serializer.throwOnCycle`
-When a circular structure is detected the serializer can either throw an Error
-or, in case this option is set to `false` the string `"[cycle]"` will be put
-instead of the object.  
-defaults to `true`
+- `Serializer.serialize(obj)`  
+Serializes the object into a JSON string.
 
-### `Serializer.serialize(obj)`
-Serializes the object and return it as JSON string.
+- `Serializer.throwOnCycle`  
+defaults to `true`  
+When a circular reference is detected the serializer will either throw an Error
+or, in case this option is set to `false`, an absolute JSON pointer to the referenced object.
 
-### `PrettySerializer.indent`
-the sequence to indent with  
-TAB (`\t`) by default, for n-space indentation simply set this string to a string of n spaces
+- `PrettySerializer.indent`  
+defaults to TAB (`\T`)  
+The sequence to indent with.
+For n-space indentation set this property to a string of n spaces.
 
-### `PrettySerializer.lineBreak`
-the sequence to break lines with  
-line feed (`\n`) by default
+- `PrettySerializer.lineBreak`  
+defaults to line feed (`\n`)  
+The sequence to break lines with.
 
-### `PrettySerializer.bracketsOwnLine`
-whether object & array opening brackets go on a separate line  
-`false` by default
+- `PrettySerializer.bracketsOwnLine`  
+defaults to `false`  
+Whether object & array opening brackets go on separate lines.
 
-### `PrettySerializer.spaceBeforeColon`
-whether to insert an extra space before colons in objects  
-`false` by default
+- `PrettySerializer.spaceBeforeColon`  
+defaults to `false`  
+Whether to insert an extra space before colons in objects.
 
 ## Example
 ```js
 import { Serializer, PrettySerializer } from '@calmdownval/json-serialize';
 
-class Person
-{
-    constructor(firstName, lastName)
-    {
-        this.firstName = firstName;
-        this.lastName = lastName;
-    }
-
-    get fullName()
-    {
-        return this.firstName + ' ' + this.lastName;
-    }
-
-    toJSON()
-    {
-        return this.fullName;
-    }
-}
-
-
-const people =
+const data =
     [
-        new Person('Alice', 'Z.'),
-        new Person('Bob', 'Y.'),
-        new Person('John', 'X.')
+        { abc : 123 }
     ];
 
-
-new Serializer().serialize(people);
+new Serializer().serialize(data);
 /* returns:
-["Alice Z.","Bob Y.","John X."]
+[{"abc":123}]
 */
 
 // create a cycle
-people.push(people);
+data.push(data);
 
-const inst = new PrettySerializer();
-inst.throwOnCycle = false;
-
-inst.serialize(people);
+// change behavior with cycles
+const json = new PrettySerializer();
+json.throwOnCycle = false;
+json.serialize(data);
 /* returns:
 [
-    "Alice Z.",
-    "Bob Y.",
-    "John X.",
-    "[cycle]"
+    {
+        "abc": 123
+    },
+    {
+        "$ref": "#"
+    }
 ]
 */
 ```
 
-## Benchmarking
+## Testing
+Make sure to first install dev dependencies.
 ```
-npm install
+npm test
+```
+
+## Benchmarking
+Make sure to first install dev dependencies.
+```
 npm run benchmark
+```
+Should output something like:
+```
+JSON.stringify        x 344,321 ops/sec ±0.53% (85 runs sampled)
+Serializer            x 310,365 ops/sec ±0.45% (87 runs sampled)
+JSON.stringify pretty x 316,518 ops/sec ±0.81% (87 runs sampled)
+PrettySerializer      x 265,525 ops/sec ±0.45% (90 runs sampled)
 ```
