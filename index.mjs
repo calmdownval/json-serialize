@@ -62,11 +62,146 @@ function escape(str)
 	return tmp;
 }
 
+function shouldSkip(obj)
+{
+	switch (typeof obj)
+	{
+		case 'function':
+		case 'undefined':
+		case 'symbol':
+			return true;
+
+		default:
+			return false;
+	}
+}
+
 export class Serializer
 {
 	constructor()
 	{
-		this.throwOnCycle = true;
+		this.infiniteNumbers =
+		this.regexes =
+		this.cycles = false;
+	}
+
+	serialize(obj)
+	{
+		return this._serialize(obj, [], '', '', true);
+	}
+
+	_serialize(obj, refs, path, indent, firstBlock = false)
+	{
+		this._isPrimitive = true;
+
+		const type = typeof obj;
+		switch (type)
+		{
+			case 'string':
+				return `"${quote(obj)}"`;
+
+			case 'number':
+				return Number.isFinite(obj)
+					? obj.toString()
+					: (this.infiniteNumbers ? `"${obj.toString()}"` : 'null');
+
+			case 'boolean':
+				return obj.toString();
+
+			case 'object':
+				if (obj === null)
+				{
+					return 'null';
+				}
+
+				if (obj instanceof Date)
+				{
+					return `"${obj.toISOString()}"`;
+				}
+
+				if (this.regexes && (obj instanceof RegExp))
+				{
+					return `"${quote(obj.toString())}"`;
+				}
+
+				for (let i = 0; i < refs.length; i += 2)
+				{
+					if (refs[i] === obj)
+					{
+						if (!this.cycles)
+						{
+							throw new TypeError('Converting circular structure to JSON');
+						}
+
+						return this._serialize({ $ref : '#' + refs[i + 1] }, [], '', indent);
+					}
+				}
+
+				refs.push(obj, path);
+
+				if (Array.isArray(obj))
+				{
+					const newIndent = this._increaseIndent(indent);
+					let tmp = this._startBlock(indent, firstBlock) + '[';
+
+					for (let i = 0, first = true; i < obj.length; ++i)
+					{
+						const json = this._serialize(obj[i], refs, this.throwOnCycle ? null : `${path}/${i}`, newIndent);
+
+						if (first)
+						{
+							tmp += this._nextItem(newIndent) + json;
+							first = false;
+							continue;
+						}
+
+						tmp += ',' + this._nextItem(newIndent) + json;
+					}
+
+					this._isPrimitive = false;
+					return tmp + (this._endBlock(indent, obj.length === 0) + ']');
+				}
+
+				if (typeof obj.toJSON === 'function')
+				{
+					return this._serialize(obj.toJSON(), refs, path, indent);
+				}
+
+				{
+					const newIndent = this._increaseIndent(indent);
+					let tmp = this._startBlock(indent, firstBlock) + '{',
+						first = true;
+
+					for (const i in obj)
+					{
+						const item = obj[i];
+						if (shouldSkip(item))
+						{
+							continue;
+						}
+
+						const json = this._serialize(item, refs, this.throwOnCycle ? null : `${path}/${escape(i)}`, newIndent);
+
+						if (first)
+						{
+							tmp += this._nextItem(newIndent) + `"${quote(i)}"` + this._colon() + json;
+							first = false;
+							continue;
+						}
+
+						tmp += ',' + this._nextItem(newIndent) + `"${quote(i)}"` + this._colon() + json;
+					}
+
+					this._isPrimitive = false;
+					return tmp + (this._endBlock(indent, first) + '}');
+				}
+
+			case 'bigint':
+				throw new TypeError('Do not know how to serialize a BigInt');
+
+			default:
+				return 'null';
+		}
 	}
 
 	_startBlock()
@@ -93,107 +228,6 @@ export class Serializer
 	{
 		return ':';
 	}
-
-	_serialize(obj, refs, indent, path)
-	{
-		var i,
-			tmp,
-			json,
-			first = true,
-			newIndent,
-			colon;
-
-		if (obj && typeof obj === 'object')
-		{
-			if (obj instanceof Date)
-			{
-				return `"${obj.toISOString()}"`;
-			}
-
-			if (obj instanceof RegExp)
-			{
-				return `"${quote(obj.toString())}"`;
-			}
-
-			for (i = 0; i < refs.length; i += 2)
-			{
-				if (refs[i] === obj)
-				{
-					if (this.throwOnCycle)
-					{
-						throw new Error('invalid circular structure to serialize as JSON');
-					}
-
-					return this._serialize({ $ref : refs[i + 1] }, [], indent, '');
-				}
-			}
-
-			// don't iterate the same object twice
-			refs.push(obj, path);
-
-			if (Array.isArray(obj))
-			{
-				tmp = this._startBlock(indent) + '[';
-				newIndent = this._increaseIndent(indent);
-
-				for (i = 0; i < obj.length; ++i)
-				{
-					json = this._serialize(obj[i], refs, newIndent, this.throwOnCycle ? null : `${path}/${i}`);
-
-					if (first)
-					{
-						tmp += this._nextItem(newIndent) + json;
-						first = false;
-						continue;
-					}
-
-					tmp += ',' + this._nextItem(newIndent) + json;
-				}
-
-				return tmp + (this._endBlock(indent, obj.length === 0) + ']');
-			}
-
-			if (typeof obj.toJSON === 'function')
-			{
-				return this._serialize(obj.toJSON(), refs, indent, path);
-			}
-
-			tmp = this._startBlock(indent) + '{';
-			newIndent = this._increaseIndent(indent);
-			colon = '"' + this._colon();
-
-			for (i in obj)
-			{
-				json = this._serialize(obj[i], refs, newIndent, this.throwOnCycle ? null : `${path}/${escape(i)}`);
-
-				if (first)
-				{
-					tmp += this._nextItem(newIndent) + '"' + quote(i) + colon + json;
-					first = false;
-					continue;
-				}
-
-				tmp += ',' + this._nextItem(newIndent) + '"' + quote(i) + colon + json;
-			}
-
-			return tmp + (this._endBlock(indent, first) + '}');
-		}
-
-		// convert special numbers into strings
-		if (typeof obj === 'number' && !Number.isFinite(obj))
-		{
-			return `"${obj.toString()}"`;
-		}
-
-		// use the builtin for primitives
-		return JSON.stringify(obj);
-	}
-
-	serialize(obj)
-	{
-		const refs = [];
-		return this._serialize(obj, refs, '', '#');
-	}
 }
 
 export class PrettySerializer extends Serializer
@@ -202,14 +236,40 @@ export class PrettySerializer extends Serializer
 	{
 		super();
 
-		this.indent = '\t';
+		this.__indent = '  ';
 		this.lineBreak = '\n';
 		this.bracketsOwnLine = false;
 		this.spaceBeforeColon = false;
 	}
 
-	_startBlock(indent)
+	get indent()
 	{
+		return /^ {1,10}$/.test(this.__indent)
+			? this.__indent.length
+			: this.__indent;
+	}
+
+	set indent(value)
+	{
+		switch (typeof value)
+		{
+			case 'number':
+				this.__indent = ' '.repeat(Math.min(10, Math.max(0, value)));
+				break;
+
+			case 'string':
+				this.__indent = value.slice(0, 10);
+				break;
+		}
+	}
+
+	_startBlock(indent, isFirst)
+	{
+		if (isFirst)
+		{
+			return '';
+		}
+
 		return this.bracketsOwnLine
 			? this.lineBreak + indent
 			: '';
@@ -229,11 +289,14 @@ export class PrettySerializer extends Serializer
 
 	_increaseIndent(indent)
 	{
-		return indent + this.indent;
+		return indent + this.__indent;
 	}
 
 	_colon()
 	{
-		return this.spaceBeforeColon ? ' : ' : ': ';
+		const after = this._isPrimitive || !this.bracketsOwnLine;
+		return this.spaceBeforeColon
+			? (after ? ' : ' : ' :')
+			: (after ? ': ' : ':');
 	}
 }
