@@ -9,9 +9,9 @@ function quote(str)
 	while (index < length)
 	{
 		c = str[index];
-		if (c == '"' || c == '\\')
+		if (c === '"' || c === '\\')
 		{
-			if (anchor != index)
+			if (anchor !== index)
 			{
 				tmp += str.slice(anchor, index);
 			}
@@ -22,7 +22,39 @@ function quote(str)
 		++index;
 	}
 
-	if (anchor != index)
+	if (anchor !== index)
+	{
+		tmp += str.slice(anchor, index);
+	}
+
+	return tmp;
+}
+
+function escape(str)
+{
+	var anchor = 0,
+		index = 0,
+		length = str.length,
+		c,
+		tmp = '';
+
+	while (index < length)
+	{
+		c = str[index];
+		if (c === '~' || c === '/')
+		{
+			if (anchor !== index)
+			{
+				tmp += str.slice(anchor, index);
+			}
+			tmp += c === '~' ? '~0' : '~1';
+			anchor = index + 1;
+		}
+
+		++index;
+	}
+
+	if (anchor !== index)
 	{
 		tmp += str.slice(anchor, index);
 	}
@@ -62,59 +94,68 @@ export class Serializer
 		return ':';
 	}
 
-	_serialize(obj, list, indent)
+	_serialize(obj, refs, indent, path)
 	{
-		if (list.indexOf(obj) != -1)
-		{
-			if (this.throwOnCycle)
-			{
-				throw new Error('invalid circular structure to serialize as JSON');
-			}
-			return '"[cycle]"';
-		}
+		var i,
+			tmp,
+			json,
+			first = true,
+			newIndent,
+			colon;
 
-		if (obj && typeof obj == 'object')
+		if (obj && typeof obj === 'object')
 		{
-			var i,
-				tmp,
-				first = true,
-				newIndent,
-				colon;
-
 			if (obj instanceof Date)
 			{
-				return '"' + obj.toISOString() + '"';
+				return `"${obj.toISOString()}"`;
 			}
 
 			if (obj instanceof RegExp)
 			{
-				return '"' + quote(obj.toString()) + '"';
+				return `"${quote(obj.toString())}"`;
+			}
+
+			for (i = 0; i < refs.length; i += 2)
+			{
+				if (refs[i] === obj)
+				{
+					if (this.throwOnCycle)
+					{
+						throw new Error('invalid circular structure to serialize as JSON');
+					}
+
+					return this._serialize({ $ref : refs[i + 1] }, [], indent, '');
+				}
 			}
 
 			// don't iterate the same object twice
-			list.push(obj);
+			refs.push(obj, path);
 
 			if (Array.isArray(obj))
 			{
 				tmp = this._startBlock(indent) + '[';
 				newIndent = this._increaseIndent(indent);
 
-				if (obj.length != 0)
+				for (i = 0; i < obj.length; ++i)
 				{
-					tmp += this._nextItem(newIndent) + this._serialize(obj[0], list, newIndent);
+					json = this._serialize(obj[i], refs, newIndent, this.throwOnCycle ? null : `${path}/${i}`);
+
+					if (first)
+					{
+						tmp += this._nextItem(newIndent) + json;
+						first = false;
+						continue;
+					}
+
+					tmp += ',' + this._nextItem(newIndent) + json;
 				}
 
-				for (i = 1; i < obj.length; ++i)
-				{
-					tmp += ',' + this._nextItem(newIndent) + this._serialize(obj[i], list, newIndent);
-				}
-
-				return tmp + (this._endBlock(indent, obj.length == 0) + ']');
+				return tmp + (this._endBlock(indent, obj.length === 0) + ']');
 			}
 
-			if (typeof obj.toJSON == 'function')
+			if (typeof obj.toJSON === 'function')
 			{
-				return this._serialize(obj.toJSON(), list, indent);
+				return this._serialize(obj.toJSON(), refs, indent, path);
 			}
 
 			tmp = this._startBlock(indent) + '{';
@@ -123,21 +164,23 @@ export class Serializer
 
 			for (i in obj)
 			{
+				json = this._serialize(obj[i], refs, newIndent, this.throwOnCycle ? null : `${path}/${escape(i)}`);
+
 				if (first)
 				{
-					tmp += this._nextItem(newIndent) + '"' + quote(i) + colon + this._serialize(obj[i], list, newIndent);
+					tmp += this._nextItem(newIndent) + '"' + quote(i) + colon + json;
 					first = false;
 					continue;
 				}
 
-				tmp += ',' + this._nextItem(newIndent) + '"' + quote(i) + colon + this._serialize(obj[i], list, newIndent);
+				tmp += ',' + this._nextItem(newIndent) + '"' + quote(i) + colon + json;
 			}
 
 			return tmp + (this._endBlock(indent, first) + '}');
 		}
 
 		// convert special numbers into strings
-		if (typeof obj == 'number' && !Number.isFinite(obj))
+		if (typeof obj === 'number' && !Number.isFinite(obj))
 		{
 			return `"${obj.toString()}"`;
 		}
@@ -148,8 +191,8 @@ export class Serializer
 
 	serialize(obj)
 	{
-		const list = [];
-		return this._serialize(obj, list, '');
+		const refs = [];
+		return this._serialize(obj, refs, '', '#');
 	}
 }
 
