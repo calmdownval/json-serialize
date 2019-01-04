@@ -32,10 +32,10 @@ When enabled serializes RegExp instances into strings.
 - `Serializer.cycles`  
 defaults to `false`  
 When a circular reference is detected the serializer will either throw an Error
-or, in case this option is set to `false`, an absolute JSON pointer to the referenced object.
+or, in case this option is set to `true`, an absolute JSON pointer to the referenced object.
 
 - `PrettySerializer.indent`  
-defaults to 2  
+defaults to `2`  
 Consistent with the third argument of JSON.stringify: the string to indent with which
 can be up to 10 characters long. Longer strings will be sliced. If set to a number
 specifies to use that amount of space characters - also clamped to 10.
