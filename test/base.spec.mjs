@@ -35,8 +35,8 @@ describe('Serializer', () =>
 		},
 		circular =
 		{
-			bob : { im_bob : 1, friends : [] },
-			max : { im_max : 1, friends : [] }
+			bob : { friends : [] },
+			max : { friends : [] }
 		},
 		tmp = { abc : 123 },
 		nonCircular =
@@ -132,7 +132,7 @@ describe('Serializer', () =>
 		{
 			assert.equal(
 				json.serialize(circular),
-				'{"bob":{"im_bob":1,"friends":[{"im_max":1,"friends":[{"$ref":"#/bob"}]}]},"max":{"$ref":"#/bob/friends/0"}}',
+				'{"bob":{"friends":[{"friends":[{"$ref":"#/bob"}]}]},"max":{"$ref":"#/bob/friends/0"}}',
 				INVALID);
 		}
 		catch (e)
