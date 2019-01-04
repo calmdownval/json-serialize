@@ -1,6 +1,6 @@
 {
 	"name": "@calmdownval/json-serialize",
-	"version": "1.0.4",
+	"version": "1.0.5",
 	"license": "MIT",
 	"description": "JSON serializer & pretty serializer",
 	"main": "index.mjs",
@@ -12,7 +12,7 @@
 	],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/calmdownval/json-serialize.git"
+		"url": "https://github.com/vaclavlahuta/json-serialize.git"
 	},
 	"engines": {
 		"node": ">=8.15.0"
